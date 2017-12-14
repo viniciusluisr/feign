@@ -28,9 +28,10 @@ import java.util.Set;
 
 import feign.InvocationHandlerFactory.MethodHandler;
 import feign.Target;
-import rx.Completable;
-import rx.Observable;
-import rx.Single;
+import hu.akarnokd.rxjava.interop.RxJavaInterop;
+import io.reactivex.Completable;
+import io.reactivex.Observable;
+import io.reactivex.Single;
 
 import static feign.Util.checkNotNull;
 
@@ -125,12 +126,12 @@ final class HystrixInvocationHandler implements InvocationHandler {
             return ((HystrixCommand) result).execute();
           } else if (isReturnsObservable(method)) {
             // Create a cold Observable
-            return ((Observable) result).toBlocking().first();
+            return ((Observable) result).blockingFirst();
           } else if (isReturnsSingle(method)) {
             // Create a cold Observable as a Single
-            return ((Single) result).toObservable().toBlocking().first();
+            return ((Single) result).toObservable().blockingFirst();
           } else if (isReturnsCompletable(method)) {
-            ((Completable) result).await();
+            ((Completable) result).blockingAwait();
             return null;
           } else {
             return result;
@@ -149,12 +150,12 @@ final class HystrixInvocationHandler implements InvocationHandler {
       return hystrixCommand;
     } else if (isReturnsObservable(method)) {
       // Create a cold Observable
-      return hystrixCommand.toObservable();
+      return hystrixCommand;
     } else if (isReturnsSingle(method)) {
       // Create a cold Observable as a Single
-      return hystrixCommand.toObservable().toSingle();
+      return Single.just(hystrixCommand.toObservable());
     } else if (isReturnsCompletable(method)) {
-      return hystrixCommand.toObservable().toCompletable();
+      return Completable.fromObservable(RxJavaInterop.toV2Observable(hystrixCommand.toObservable()));
     }
     return hystrixCommand.execute();
   }

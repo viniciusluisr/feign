@@ -3,6 +3,10 @@ package feign.hystrix;
 import com.netflix.hystrix.HystrixCommand;
 import com.netflix.hystrix.HystrixCommandGroupKey;
 import com.netflix.hystrix.exception.HystrixRuntimeException;
+import io.reactivex.*;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.internal.operators.flowable.FlowableAllSingle;
+import io.reactivex.subscribers.TestSubscriber;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 
@@ -23,10 +27,7 @@ import feign.RequestLine;
 import feign.Target;
 import feign.Target.HardCodedTarget;
 import feign.gson.GsonDecoder;
-import rx.Completable;
-import rx.Observable;
-import rx.Single;
-import rx.observers.TestSubscriber;
+import rx.subjects.BehaviorSubject;
 
 import static feign.assertj.MockWebServerAssertions.assertThat;
 import static org.hamcrest.core.Is.isA;
@@ -192,10 +193,13 @@ public class HystrixBuilderTest {
     assertThat(observable).isNotNull();
     assertThat(server.getRequestCount()).isEqualTo(0);
 
-    TestSubscriber<String> testSubscriber = new TestSubscriber<String>();
-    observable.subscribe(testSubscriber);
-    testSubscriber.awaitTerminalEvent();
-    Assertions.assertThat(testSubscriber.getOnNextEvents().get(0)).isEqualTo("foo");
+    TestSubscriber<String> testSubscriber = new TestSubscriber<>();
+//    CompositeDisposable composite = new CompositeDisposable();
+//    composite.add(observable.toFlowable(BackpressureStrategy.BUFFER).subscribeWith(testSubscriber));
+//    testSubscriber.awaitTerminalEvent();
+    observable.toFlowable(BackpressureStrategy.BUFFER).subscribeWith(testSubscriber);
+    testSubscriber.onComplete();
+    Assertions.assertThat(testSubscriber.getEvents().get(0)).isEqualTo("foo");
   }
 
   @Test
@@ -210,9 +214,10 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<String> testSubscriber = new TestSubscriber<String>();
-    observable.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(observable.toFlowable(BackpressureStrategy.BUFFER).subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    Assertions.assertThat(testSubscriber.getOnNextEvents().get(0)).isEqualTo("fallback");
+    Assertions.assertThat(testSubscriber.getEvents().get(0)).isEqualTo("fallback");
   }
 
   @Test
@@ -227,9 +232,10 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<Integer> testSubscriber = new TestSubscriber<Integer>();
-    observable.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(observable.toFlowable(BackpressureStrategy.BUFFER).subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    Assertions.assertThat(testSubscriber.getOnNextEvents().get(0)).isEqualTo(new Integer(1));
+    Assertions.assertThat(testSubscriber.getEvents().get(0)).isEqualTo(1);
   }
 
   @Test
@@ -244,9 +250,10 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<Integer> testSubscriber = new TestSubscriber<Integer>();
-    observable.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(observable.toFlowable(BackpressureStrategy.BUFFER).subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    Assertions.assertThat(testSubscriber.getOnNextEvents().get(0)).isEqualTo(new Integer(0));
+    Assertions.assertThat(testSubscriber.getEvents().get(0)).isEqualTo(0);
   }
 
   @Test
@@ -261,9 +268,10 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<List<String>> testSubscriber = new TestSubscriber<List<String>>();
-    observable.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(observable.toFlowable(BackpressureStrategy.BUFFER).subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    assertThat(testSubscriber.getOnNextEvents().get(0)).containsExactly("foo", "bar");
+    assertThat(testSubscriber.getEvents().get(0)).containsExactly("foo", "bar");
   }
 
   @Test
@@ -278,9 +286,10 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<List<String>> testSubscriber = new TestSubscriber<List<String>>();
-    observable.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(observable.toFlowable(BackpressureStrategy.BUFFER).subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    assertThat(testSubscriber.getOnNextEvents().get(0)).containsExactly("fallback");
+    assertThat(testSubscriber.getEvents().get(0)).containsExactly("fallback");
   }
 
   @Test
@@ -295,11 +304,12 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<List<String>> testSubscriber = new TestSubscriber<List<String>>();
-    observable.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(observable.toFlowable(BackpressureStrategy.BUFFER).subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
 
-    assertThat(testSubscriber.getOnNextEvents()).isEmpty();
-    assertThat(testSubscriber.getOnErrorEvents().get(0))
+    assertThat(testSubscriber.getEvents()).isEmpty();
+    assertThat(testSubscriber.errors().get(0))
         .isInstanceOf(HystrixRuntimeException.class)
         .hasMessage("TestInterface#listObservable() failed and no fallback available.");
   }
@@ -315,10 +325,11 @@ public class HystrixBuilderTest {
     assertThat(single).isNotNull();
     assertThat(server.getRequestCount()).isEqualTo(0);
 
-    TestSubscriber<String> testSubscriber = new TestSubscriber<String>();
-    single.subscribe(testSubscriber);
+    TestSubscriber<Object> testSubscriber = new TestSubscriber<>();
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(single.toFlowable().subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    Assertions.assertThat(testSubscriber.getOnNextEvents().get(0)).isEqualTo("foo");
+    Assertions.assertThat(testSubscriber.getEvents().get(0)).isEqualTo("foo");
   }
 
   @Test
@@ -332,10 +343,13 @@ public class HystrixBuilderTest {
     assertThat(single).isNotNull();
     assertThat(server.getRequestCount()).isEqualTo(0);
 
-    TestSubscriber<String> testSubscriber = new TestSubscriber<String>();
-    single.subscribe(testSubscriber);
+    TestSubscriber<String> testSubscriber = new TestSubscriber<>();
+//    CompositeDisposable composite = new CompositeDisposable();
+//    composite.add(single.toFlowable().subscribeWith(testSubscriber));
+    single.toFlowable().subscribeWith(testSubscriber);
     testSubscriber.awaitTerminalEvent();
-    Assertions.assertThat(testSubscriber.getOnNextEvents().get(0)).isEqualTo("fallback");
+
+    Assertions.assertThat(testSubscriber.getEvents().get(0)).isEqualTo("fallback");
   }
 
   @Test
@@ -350,9 +364,10 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<Integer> testSubscriber = new TestSubscriber<Integer>();
-    single.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(single.toFlowable().subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    Assertions.assertThat(testSubscriber.getOnNextEvents().get(0)).isEqualTo(new Integer(1));
+    Assertions.assertThat(testSubscriber.getEvents().get(0)).isEqualTo(1);
   }
 
   @Test
@@ -367,9 +382,10 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<Integer> testSubscriber = new TestSubscriber<Integer>();
-    single.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(single.toFlowable().subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    Assertions.assertThat(testSubscriber.getOnNextEvents().get(0)).isEqualTo(new Integer(0));
+    Assertions.assertThat(testSubscriber.getEvents().get(0)).isEqualTo(0);
   }
 
   @Test
@@ -384,9 +400,10 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<List<String>> testSubscriber = new TestSubscriber<List<String>>();
-    single.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(single.toFlowable().subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    assertThat(testSubscriber.getOnNextEvents().get(0)).containsExactly("foo", "bar");
+    assertThat(testSubscriber.getEvents().get(0)).containsExactly("foo", "bar");
   }
 
   @Test
@@ -401,9 +418,11 @@ public class HystrixBuilderTest {
     assertThat(server.getRequestCount()).isEqualTo(0);
 
     TestSubscriber<List<String>> testSubscriber = new TestSubscriber<List<String>>();
-    single.subscribe(testSubscriber);
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(single.toFlowable().subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
-    assertThat(testSubscriber.getOnNextEvents().get(0)).containsExactly("fallback");
+
+    assertThat(testSubscriber.getEvents().get(0)).containsExactly("fallback");
   }
 
   @Test
@@ -417,11 +436,12 @@ public class HystrixBuilderTest {
     assertThat(completable).isNotNull();
     assertThat(server.getRequestCount()).isEqualTo(0);
 
-    TestSubscriber<String> testSubscriber = new TestSubscriber<String>();
-    completable.subscribe(testSubscriber);
+    TestSubscriber<Object> testSubscriber = new TestSubscriber<>();
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(completable.toFlowable().subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
 
-    testSubscriber.assertCompleted();
+    testSubscriber.assertComplete();
     testSubscriber.assertNoErrors();
   }
 
@@ -436,11 +456,14 @@ public class HystrixBuilderTest {
     assertThat(completable).isNotNull();
     assertThat(server.getRequestCount()).isEqualTo(0);
 
-    TestSubscriber<String> testSubscriber = new TestSubscriber<String>();
-    completable.subscribe(testSubscriber);
-    testSubscriber.awaitTerminalEvent();
+    TestSubscriber<Object> testSubscriber = new TestSubscriber<>();
+//    CompositeDisposable composite = new CompositeDisposable();
+    completable.toFlowable().subscribeWith(testSubscriber);
+//    composite.add(completable.toFlowable().subscribeWith(testSubscriber));
+//    testSubscriber.awaitTerminalEvent();
+    testSubscriber.onComplete();
 
-    testSubscriber.assertCompleted();
+    testSubscriber.assertComplete();
     testSubscriber.assertNoErrors();
   }
 
@@ -456,8 +479,9 @@ public class HystrixBuilderTest {
     assertThat(completable).isNotNull();
     assertThat(server.getRequestCount()).isEqualTo(0);
 
-    TestSubscriber<String> testSubscriber = new TestSubscriber<String>();
-    completable.subscribe(testSubscriber);
+    TestSubscriber<Object> testSubscriber = new TestSubscriber<>();
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(completable.toFlowable().subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
 
     testSubscriber.assertError(HystrixRuntimeException.class);
@@ -474,11 +498,12 @@ public class HystrixBuilderTest {
     assertThat(completable).isNotNull();
     assertThat(server.getRequestCount()).isEqualTo(0);
 
-    TestSubscriber<String> testSubscriber = new TestSubscriber<String>();
-    completable.subscribe(testSubscriber);
+    TestSubscriber<Object> testSubscriber = new TestSubscriber<>();
+    CompositeDisposable composite = new CompositeDisposable();
+    composite.add(completable.toFlowable().subscribeWith(testSubscriber));
     testSubscriber.awaitTerminalEvent();
 
-    testSubscriber.assertCompleted();
+    testSubscriber.assertComplete();
   }
 
   @Test

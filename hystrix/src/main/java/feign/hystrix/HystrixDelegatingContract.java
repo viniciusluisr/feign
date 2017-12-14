@@ -10,9 +10,9 @@ import com.netflix.hystrix.HystrixCommand;
 
 import feign.Contract;
 import feign.MethodMetadata;
-import rx.Completable;
-import rx.Observable;
-import rx.Single;
+import io.reactivex.Completable;
+import io.reactivex.Observable;
+import io.reactivex.Single;
 
 /**
  * This special cases methods that return {@link HystrixCommand}, {@link Observable}, or {@link Single} so that they
